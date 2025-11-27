@@ -189,7 +189,7 @@ def save_image(blocks,l,original_shape,filename):
     cv.imwrite(filename,out)
 
 def get_data() -> Tuple[npt.NDArray, int, int]:
-    im = cv.imread("Imagenes/decyphered_image.png", cv.IMREAD_GRAYSCALE)
+    im = cv.imread("Imagenes/mri3.jpg", cv.IMREAD_GRAYSCALE)
     rounds = 3
     l = 16
     return im, rounds, l
@@ -229,17 +229,17 @@ def encode():
     X0 = generate_X0()
     save_keys(A,X0)
     Cblocks = encrypt_image(im,rounds,l,A,X0)
-    save_image(Cblocks,l,original_shape,"encrypted.png")
+    save_image(Cblocks,l,original_shape,"encrypted3.png")
 
 def decode():
-    C = cv.imread("encrypted.png",cv.IMREAD_GRAYSCALE)
+    C = cv.imread("encrypted3.png",cv.IMREAD_GRAYSCALE)
     original_shape = C.shape
     l = 16
     rounds = 3
     A,X0 = load_keys()
     Cblocks = prepare_image(C,l)
     Iblocks = decrypt_image(Cblocks,rounds,l,A,X0)
-    save_image(Iblocks,l,original_shape,"decrypted.png")
+    save_image(Iblocks,l,original_shape,"decrypted3.png")
 
 if __name__=="__main__":
     encode()
