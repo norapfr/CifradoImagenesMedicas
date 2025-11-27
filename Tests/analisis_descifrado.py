@@ -5,6 +5,7 @@ from skimage.metrics import peak_signal_noise_ratio as psnr
 import sys
 import os
 
+# para ejecutarlo en la raiz-> python -m Tests.analisis_descifrado
 
 from Scripts import encrypt_image, load_keys, save_image, prepare_image
 
