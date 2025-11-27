@@ -189,7 +189,7 @@ def save_image(blocks,l,original_shape,filename):
     cv.imwrite(filename,out)
 
 def get_data() -> Tuple[npt.NDArray, int, int]:
-    im = cv.imread("decypheredImage.png", cv.IMREAD_GRAYSCALE)
+    im = cv.imread("Imagenes/decyphered_image.png", cv.IMREAD_GRAYSCALE)
     rounds = 3
     l = 16
     return im, rounds, l
