@@ -4,10 +4,11 @@ import matplotlib.pyplot as plt
 from skimage.metrics import peak_signal_noise_ratio as psnr
 import sys
 import os
+from pathlib import Path
 
 # para ejecutarlo en la raiz-> python -m Tests.analisis_descifrado
-
-from Scripts import encrypt_image, load_keys, save_image, prepare_image
+sys.path.append(str(Path(__file__).parent.parent / "Scripts"))
+from main import encrypt_image, load_keys, save_image, prepare_image
 
 # ======== MÉTRICAS ========
 def safe_psnr(original, decrypted):
