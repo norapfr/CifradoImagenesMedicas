@@ -35,15 +35,17 @@ def cat_map_2d_matrix(a:int, b:int) -> npt.NDArray:
     return A
 
 #keys
-def generate_A():
-    a1,b1 = np.random.randint(1,10,2)
-    a2,b2 = np.random.randint(1,10,2)
-    info={
-        "A4": cat_map_4d_matrix(2,1,2,2),
-        "A2_primary": cat_map_2d_matrix(a1,b1),
-        "A2_secondary": cat_map_2d_matrix(a2,b2)
+def generate_params():
+    p_omega = np.random.randint(1,6,4).tolist()
+    p_psi = np.random.randint(1,6,4).tolist()
+    p_a2_primary = np.random.randint(1,10,2).tolist()
+    p_a2_secondary = np.random.randint(1,10,2).tolist()
+    return {
+        "p_omega": p_omega,
+        "p_psi": p_psi,
+        "p_a2_primary": p_a2_primary,
+        "p_a2_secondary": p_a2_secondary
     }
-    return info
 
 def generate_X0():
     def rand_nonzero(n): 
@@ -51,20 +53,28 @@ def generate_X0():
         while np.allclose(x,0): x=np.random.random(n)
         return x
     return {
-        "X0_A4": rand_nonzero(4),
-        "X0_primary": rand_nonzero(2),
-        "X0_secondary": rand_nonzero(2)
+        "X0_omega": rand_nonzero(4),
+        "X0_psi": rand_nonzero(4),
+        "X0_a2_primary": rand_nonzero(2),
+        "X0_a2_secondary": rand_nonzero(2)
     }
 
-def save_keys(A,X0):
-    keys = {"A":{k:v.tolist() for k,v in A.items()}, "X0":{k:v.tolist() for k,v in X0.items()}}
+def save_keys(params, X0):
+    keys = {"params": params, "X0": {k:v.tolist() for k,v in X0.items()}}
     with open("keys.json","w") as f: json.dump(keys,f,indent=4)
 
 def load_keys():
     with open("keys.json","r") as f: data=json.load(f)
-    A  = {k:np.array(v) for k,v in data["A"].items()}
+    p = data["params"]
     X0 = {k:np.array(v) for k,v in data["X0"].items()}
-    return A,X0
+    
+    A = {
+        "A_omega": cat_map_4d_matrix(*p["p_omega"]),
+        "A_psi": cat_map_4d_matrix(*p["p_psi"]),
+        "A_a2_primary": cat_map_2d_matrix(*p["p_a2_primary"]),
+        "A_a2_secondary": cat_map_2d_matrix(*p["p_a2_secondary"])
+    }
+    return A, X0
 
 #prng
 def prng_4d(A:npt.NDArray, X0:npt.NDArray, L:int):
@@ -110,8 +120,8 @@ def sequence_R(A2,X0,U,L):
 
 def shuffle(Iblocks,X0,A):
     U=len(Iblocks)
-    R=sequence_R(A["A2_primary"],X0["X0_primary"],U,U)
-    Rt=sequence_R(A["A2_secondary"],X0["X0_secondary"],U,U)
+    R=sequence_R(A["A_a2_primary"],X0["X0_a2_primary"],U,U)
+    Rt=sequence_R(A["A_a2_secondary"],X0["X0_a2_secondary"],U,U)
     perm1 = Iblocks.copy()
     for i in range(U): perm1[i],perm1[R[i]] = perm1[R[i]].copy(),perm1[i].copy()
     perm2 = perm1.copy()
@@ -120,8 +130,8 @@ def shuffle(Iblocks,X0,A):
 
 def deshuffle(Cblocks,X0,A):
     U=len(Cblocks)
-    R = sequence_R(A["A2_primary"],X0["X0_primary"],U,U)
-    Rt=sequence_R(A["A2_secondary"],X0["X0_secondary"],U,U)
+    R = sequence_R(A["A_a2_primary"],X0["X0_a2_primary"],U,U)
+    Rt=sequence_R(A["A_a2_secondary"],X0["X0_a2_secondary"],U,U)
     perm1 = Cblocks.copy()
     for i in reversed(range(U)): perm1[i],perm1[Rt[i]] = perm1[Rt[i]].copy(),perm1[i].copy()
     perm0 = perm1.copy()
@@ -194,29 +204,24 @@ def get_data() -> Tuple[npt.NDArray, int, int]:
     l = 16
     return im, rounds, l
 
-#main
-
 def encrypt_image(im,rounds,l,A,X0):
     Iblocks=prepare_image(im,l)
-    U=len(Iblocks)
     n=l
     r=rounds
-    omega = get_omega(A["A4"],X0["X0_A4"],l,n)
-    psi = get_psi(A["A4"],X0["X0_A4"],r,l)
-
+    omega = get_omega(A["A_omega"],X0["X0_omega"],l,n)
+    psi = get_psi(A["A_psi"],X0["X0_psi"],r,l)
     for _ in range(rounds):
         Iblocks = shuffle(Iblocks,X0,A)
         Iblocks = mask(Iblocks,omega,psi)
-
     return Iblocks
 
 def decrypt_image(Cblocks,rounds,l,A,X0):
     U=len(Cblocks)
     n=l
     r=rounds
-    omega = get_omega(A["A4"],X0["X0_A4"],l,n)
-    psi   = get_psi(A["A4"],X0["X0_A4"],r,l)
-
+    omega = get_omega(A["A_omega"],X0["X0_omega"],l,n)
+    psi   = get_psi(A["A_psi"],X0["X0_psi"],r,l)
+    
     for _ in range(rounds):
         Cblocks = unmask(Cblocks,omega,psi)
         Cblocks = deshuffle(Cblocks,X0,A)
@@ -225,9 +230,17 @@ def decrypt_image(Cblocks,rounds,l,A,X0):
 def encode():
     im, rounds, l = get_data()
     original_shape = im.shape
-    A = generate_A()
+    params = generate_params()
     X0 = generate_X0()
-    save_keys(A,X0)
+    save_keys(params,X0)
+    
+    A = {
+        "A_omega": cat_map_4d_matrix(*params["p_omega"]),
+        "A_psi": cat_map_4d_matrix(*params["p_psi"]),
+        "A_a2_primary": cat_map_2d_matrix(*params["p_a2_primary"]),
+        "A_a2_secondary": cat_map_2d_matrix(*params["p_a2_secondary"])
+    }
+    
     Cblocks = encrypt_image(im,rounds,l,A,X0)
     save_image(Cblocks,l,original_shape,"encrypted3.png")
 
