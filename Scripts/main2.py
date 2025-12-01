@@ -252,10 +252,10 @@ def encode():
     }
 
     Cblocks=encrypt_image(im,rounds,l,A,X0)
-    save_image(Cblocks,l,original_shape,"encrypted3.png")
+    save_image(Cblocks,l,original_shape,"encrypted.png")
 
 def decode():
-    C = cv.imread("encrypted3.png", cv.IMREAD_GRAYSCALE)
+    C = cv.imread("encrypted.png", cv.IMREAD_GRAYSCALE)
     original_shape = C.shape
     l, rounds = 16, 3
 
@@ -263,7 +263,7 @@ def decode():
 
     Cblocks=prepare_image(C,l)
     Iblocks=decrypt_image(Cblocks,rounds,l,A,X0)
-    save_image(Iblocks,l,original_shape,"decrypted3.png")
+    save_image(Iblocks,l,original_shape,"decrypted.png")
 
     O = cv.imread("decypheredImage.png", cv.IMREAD_GRAYSCALE)
     O_mod = O.copy()
@@ -274,6 +274,20 @@ def decode():
     C_mod = blocks_to_image(C_mod_blocks, original_shape, l)
 
     I_img = blocks_to_image(Iblocks, original_shape, l)
+
+    cv.imwrite("C1.png", C) 
+    cv.imwrite("C2.png", C_mod)
+
+    diff = cv.absdiff(C, C_mod)
+
+    # escalar para poder visualizar -> magnitud relativa de las diferencias
+    diff_visual = np.clip(diff * 20, 0, 255).astype(np.uint8)
+    cv.imwrite("Diff.png", diff_visual)
+
+    # muestra que píxeles cambiaron
+    diff_binary = (diff > 0).astype(np.uint8) * 255
+    cv.imwrite("Diff_binary.png", diff_binary)
+
 
     NPCR, UACI = npcr_uaci(I_img, C_mod)
     print("\n========= NPCR & UACI =========")
