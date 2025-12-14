@@ -3,10 +3,11 @@ from tkinter import filedialog, messagebox
 from PIL import Image, ImageTk
 import numpy as np
 import cv2 as cv
-import hashlib
+import json
+import os
 
 # ==============================================================================
-# 1. LÓGICA CRIPTOGRÁFICA (Matemáticas del caos)
+# 1. LÓGICA CRIPTOGRÁFICA (Original basada en main2.py)
 # ==============================================================================
 
 def cat_map_4d_matrix(a, b, c, d):
@@ -22,37 +23,39 @@ def cat_map_4d_matrix(a, b, c, d):
 def cat_map_2d_matrix(a, b):
     return np.array([[1, a], [b, a*b+1]], dtype=float)
 
-def get_deterministic_keys(seed_text):
-    hash_object = hashlib.sha256(seed_text.encode())
-    seed_int = int.from_bytes(hash_object.digest()[:4], 'big')
-    rng = np.random.RandomState(seed_int)
-    
+def generate_random_keys():
+    """Genera claves completamente aleatorias (como en main2.py)"""
     params = {
-        "p_omega": rng.randint(1, 10, 4).tolist(),
-        "p_psi": rng.randint(1, 10, 4).tolist(),
-        "p_a2_primary": rng.randint(1, 10, 2).tolist(),
-        "p_a2_secondary": rng.randint(1, 10, 2).tolist()
+        "p_omega": np.random.randint(1, 10, 4).tolist(),
+        "p_psi": np.random.randint(1, 10, 4).tolist(),
+        "p_a2_primary": np.random.randint(1, 10, 2).tolist(),
+        "p_a2_secondary": np.random.randint(1, 10, 2).tolist()
     }
+    
     def rand_nonzero(n):
-        x = rng.random_sample(n)
-        while np.allclose(x, 0): x = rng.random_sample(n)
-        return x
+        x = np.random.random(n)
+        while np.allclose(x, 0): x = np.random.random(n)
+        return x.tolist() # Convertir a lista para JSON serializable
+
     X0 = {
         "X0_omega": rand_nonzero(4),
         "X0_psi": rand_nonzero(4),
         "X0_a2_primary": rand_nonzero(2),
         "X0_a2_secondary": rand_nonzero(2)
     }
-    A = {
+    return params, X0
+
+def build_matrices(params):
+    """Reconstruye las matrices A a partir de los parámetros"""
+    return {
         "A_omega": cat_map_4d_matrix(*params["p_omega"]),
         "A_psi": cat_map_4d_matrix(*params["p_psi"]),
         "A_a2_primary": cat_map_2d_matrix(*params["p_a2_primary"]),
         "A_a2_secondary": cat_map_2d_matrix(*params["p_a2_secondary"])
     }
-    return A, X0
 
 def prng_4d(A, X0, L):
-    X = X0.copy()
+    X = np.array(X0)
     Y_list = []
     U = np.array([2, 3, 5, 1], dtype=float)
     iterations = L // 16 + 1
@@ -139,51 +142,44 @@ def blocks_to_image(blocks, shape, l):
             idx += 1
     return out
 
-# FUNCIÓN PRINCIPAL CON PASOS
-def run_algorithm_with_steps(image, seed, mode='encrypt'):
+# FUNCIÓN PRINCIPAL DE EJECUCIÓN (Modificada para recibir keys en dict)
+def run_algorithm_with_steps(image, key_data, mode='encrypt'):
     rounds = 3
     l = 16
     
-    A, X0 = get_deterministic_keys(seed)
+    # Extraer claves del diccionario
+    params = key_data["params"]
+    X0_raw = key_data["X0"]
+    
+    # Convertir listas a numpy arrays para el cálculo
+    X0 = {k: np.array(v) for k, v in X0_raw.items()}
+    A = build_matrices(params)
+    
     blocks, new_shape = prepare_image(image, l)
     omega = get_omega(A["A_omega"], X0["X0_omega"], l, l)
     psi = get_psi(A["A_psi"], X0["X0_psi"], rounds, l)
     
-    # Historial de pasos: [(Nombre_Paso, Imagen_Resultante)]
     history = []
-    
-    # Paso 0: Estado inicial
     current_img = blocks_to_image(blocks, new_shape, l)
     history.append(("Estado Inicial", current_img))
     
     if mode == 'encrypt':
         for r in range(rounds):
-            # Fase 1: Barajado
             blocks = shuffle(blocks, X0, A, 'encrypt')
-            img_step = blocks_to_image(blocks, new_shape, l)
-            history.append((f"Ronda {r+1}: Barajado (Shuffling)", img_step))
-            
-            # Fase 2: Enmascaramiento
+            history.append((f"Ronda {r+1}: Barajado", blocks_to_image(blocks, new_shape, l)))
             blocks = mask_process(blocks, omega, psi, 'encrypt')
-            img_step = blocks_to_image(blocks, new_shape, l)
-            history.append((f"Ronda {r+1}: Enmascarado (Masking)", img_step))
-            
-    else: # Decrypt
+            history.append((f"Ronda {r+1}: Enmascarado", blocks_to_image(blocks, new_shape, l)))
+    else:
         for r in range(rounds):
-            # Fase 1: Des-enmascaramiento
             blocks = mask_process(blocks, omega, psi, 'decrypt')
-            img_step = blocks_to_image(blocks, new_shape, l)
-            history.append((f"Ronda {rounds-r}: Des-enmascarado", img_step))
-            
-            # Fase 2: Des-barajado
+            history.append((f"Ronda {rounds-r}: Des-enmascarado", blocks_to_image(blocks, new_shape, l)))
             blocks = shuffle(blocks, X0, A, 'decrypt')
-            img_step = blocks_to_image(blocks, new_shape, l)
-            history.append((f"Ronda {rounds-r}: Des-barajado", img_step))
+            history.append((f"Ronda {rounds-r}: Des-barajado", blocks_to_image(blocks, new_shape, l)))
             
     return history
 
 # ==============================================================================
-# 2. INTERFAZ GRÁFICA (Con Slider Mejorado)
+# 2. INTERFAZ GRÁFICA (Gestión JSON + Memoria)
 # ==============================================================================
 
 ctk.set_appearance_mode("Dark")
@@ -192,8 +188,11 @@ ctk.set_default_color_theme("blue")
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Cifrado Médico - Visualizador de Rondas")
-        self.geometry("1100x750")
+        self.title("Cifrado Médico - JSON Key System")
+        self.geometry("1100x800")
+        
+        # Estado global de claves (Memoria)
+        self.current_keys = None # Aquí se guarda el último juego de claves usado/generado
         
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -201,62 +200,91 @@ class App(ctk.CTk):
         self.tab_view = ctk.CTkTabview(self)
         self.tab_view.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
         
-        self.setup_tab("Cifrar")
-        self.setup_tab("Descifrar")
-        
-        # Almacenamiento de datos
         self.img_cv_source = {}
         self.history_steps = {}
 
-    def setup_tab(self, name):
-        tab = self.tab_view.add(name)
+        self.setup_encryption_tab()
+        self.setup_decryption_tab()
+
+    def setup_encryption_tab(self):
+        tab = self.tab_view.add("Cifrar")
         tab.grid_columnconfigure(0, weight=1)
         tab.grid_columnconfigure(1, weight=3)
         
-        # --- Panel Izquierdo (Controles) ---
+        # -- Controles --
         frame_controls = ctk.CTkFrame(tab)
         frame_controls.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
         
-        ctk.CTkLabel(frame_controls, text=f"Módulo {name}", font=("Arial", 18, "bold")).pack(pady=15)
+        ctk.CTkLabel(frame_controls, text="Módulo de Cifrado", font=("Arial", 18, "bold")).pack(pady=15)
         
-        ctk.CTkButton(frame_controls, text="Cargar Imagen", command=lambda: self.load_image(name)).pack(pady=10)
+        ctk.CTkButton(frame_controls, text="1. Cargar Imagen Original", command=lambda: self.load_image("Cifrar")).pack(pady=10)
         
-        ctk.CTkLabel(frame_controls, text="Semilla (Seed):").pack(pady=(20,0))
-        entry_seed = ctk.CTkEntry(frame_controls, show="*")
-        entry_seed.pack(pady=5)
+        ctk.CTkLabel(frame_controls, text="Nota: Se generarán claves nuevas\naleatorias automáticamente.", text_color="gray").pack(pady=10)
         
-        # Guardar referencia al entry
-        setattr(self, f"entry_seed_{name}", entry_seed)
+        ctk.CTkButton(frame_controls, text="2. EJECUTAR CIFRADO", fg_color="green", command=self.run_encryption).pack(pady=10)
         
-        ctk.CTkButton(frame_controls, text=f"Ejecutar {name}", 
-                      fg_color="green",
-                      command=lambda: self.process(name)).pack(pady=20)
+        # Botones de guardado (deshabilitados al inicio)
+        self.btn_save_img_enc = ctk.CTkButton(frame_controls, text="3. Guardar Imagen Cifrada", state="disabled", command=lambda: self.save_current_image("Cifrar"))
+        self.btn_save_img_enc.pack(pady=10)
         
-        ctk.CTkButton(frame_controls, text="Guardar Imagen Actual", command=lambda: self.save_current_image(name)).pack(pady=10)
+        self.btn_save_json = ctk.CTkButton(frame_controls, text="4. Guardar Claves (JSON)", fg_color="#D35400", state="disabled", command=self.save_keys_json)
+        self.btn_save_json.pack(pady=10)
+
+        # -- Visualización --
+        self.setup_visualization_frame(tab, "Cifrar")
+
+    def setup_decryption_tab(self):
+        tab = self.tab_view.add("Descifrar")
+        tab.grid_columnconfigure(0, weight=1)
+        tab.grid_columnconfigure(1, weight=3)
         
-        # --- Panel Derecho (Visualización) ---
+        # -- Controles --
+        frame_controls = ctk.CTkFrame(tab)
+        frame_controls.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        
+        ctk.CTkLabel(frame_controls, text="Módulo de Descifrado", font=("Arial", 18, "bold")).pack(pady=15)
+        
+        ctk.CTkButton(frame_controls, text="1. Cargar Imagen Cifrada", command=lambda: self.load_image("Descifrar")).pack(pady=10)
+        
+        # Sección Claves
+        ctk.CTkLabel(frame_controls, text="Gestión de Claves:").pack(pady=(20,5))
+        
+        self.lbl_key_status = ctk.CTkLabel(frame_controls, text="Estado: Usando últimas claves generadas", text_color="yellow", font=("Arial", 11))
+        self.lbl_key_status.pack(pady=5)
+        
+        ctk.CTkButton(frame_controls, text="Cargar JSON de Claves", fg_color="#2980B9", command=self.load_keys_json).pack(pady=5)
+        
+        ctk.CTkButton(frame_controls, text="2. EJECUTAR DESCIFRADO", fg_color="green", command=self.run_decryption).pack(pady=20)
+        
+        self.btn_save_img_dec = ctk.CTkButton(frame_controls, text="3. Guardar Imagen Descifrada", state="disabled", command=lambda: self.save_current_image("Descifrar"))
+        self.btn_save_img_dec.pack(pady=10)
+
+        # -- Visualización --
+        self.setup_visualization_frame(tab, "Descifrar")
+
+    def setup_visualization_frame(self, tab, name):
         frame_view = ctk.CTkFrame(tab)
         frame_view.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
         
-        # 1. SLIDER (Abajo, fijo)
+        # Slider Abajo
         frame_slider = ctk.CTkFrame(frame_view, fg_color="transparent")
         frame_slider.pack(side="top", fill="x", padx=20, pady=20)
         
-        lbl_step_name = ctk.CTkLabel(frame_slider, text="Estado: Esperando...")
-        lbl_step_name.pack()
-        setattr(self, f"lbl_step_{name}", lbl_step_name)
+        lbl_step = ctk.CTkLabel(frame_slider, text="Estado: Esperando...")
+        lbl_step.pack()
+        setattr(self, f"lbl_step_{name}", lbl_step)
         
         slider = ctk.CTkSlider(frame_slider, from_=0, to=1, number_of_steps=1, state="disabled")
         slider.pack(fill="x", pady=5)
-        # Configurar comando del slider
         slider.configure(command=lambda val, m=name: self.on_slider_change(m, val))
-        
         setattr(self, f"slider_{name}", slider)
 
-        # 2. IMAGEN (Arriba, expandible)
+        # Imagen Arriba
         lbl_img = ctk.CTkLabel(frame_view, text="Vista Previa")
         lbl_img.pack(side="top", expand=True, fill="both", pady=10)
         setattr(self, f"lbl_preview_{name}", lbl_img)
+
+    # --- LÓGICA DE INTERFAZ ---
 
     def load_image(self, tab_name):
         path = filedialog.askopenfilename(filetypes=[("Images", "*.jpg *.png *.bmp")])
@@ -265,75 +293,120 @@ class App(ctk.CTk):
             self.img_cv_source[tab_name] = img
             self.show_image(img, tab_name)
             
-            # Resetear slider e historial
+            # Reset UI
             self.history_steps[tab_name] = None
-            slider = getattr(self, f"slider_{tab_name}")
-            slider.configure(state="disabled", from_=0, to=1, number_of_steps=1)
-            slider.set(0)
-            getattr(self, f"lbl_step_{tab_name}").configure(text="Imagen cargada (Original)")
+            getattr(self, f"slider_{tab_name}").configure(state="disabled")
+            getattr(self, f"lbl_step_{tab_name}").configure(text="Imagen Cargada")
+            
+            if tab_name == "Cifrar":
+                self.btn_save_img_enc.configure(state="disabled")
+                self.btn_save_json.configure(state="disabled")
+            else:
+                self.btn_save_img_dec.configure(state="disabled")
 
     def show_image(self, cv_img, tab_name):
         if cv_img is None: return
         img_pil = Image.fromarray(cv_img)
-        
-        # Ajustar tamaño manteniendo proporción
-        target_size = (600, 500)
-        img_pil.thumbnail(target_size)
-        
+        img_pil.thumbnail((600, 500))
         img_tk = ImageTk.PhotoImage(img_pil)
         lbl = getattr(self, f"lbl_preview_{tab_name}")
         lbl.configure(image=img_tk, text="")
         lbl.image = img_tk
 
-    def process(self, mode):
-        if mode not in self.img_cv_source:
+    # --- ACCIONES CIFRADO ---
+    def run_encryption(self):
+        if "Cifrar" not in self.img_cv_source:
             messagebox.showerror("Error", "Carga una imagen primero.")
             return
-        
-        seed = getattr(self, f"entry_seed_{mode}").get()
-        if not seed:
-            messagebox.showerror("Error", "Introduce una semilla.")
-            return
-            
+
         try:
-            op = 'encrypt' if mode == "Cifrar" else 'decrypt'
-            # Ejecutar algoritmo y obtener historial
-            history = run_algorithm_with_steps(self.img_cv_source[mode], seed, mode=op)
-            self.history_steps[mode] = history
+            # 1. Generar claves nuevas aleatorias
+            params, X0 = generate_random_keys()
+            self.current_keys = {"params": params, "X0": X0} # Guardar en memoria
             
-            # Configurar slider
-            total_steps = len(history)
-            slider = getattr(self, f"slider_{mode}")
-            slider.configure(state="normal", from_=0, to=total_steps-1, number_of_steps=total_steps-1)
-            slider.set(total_steps-1) # Ir al final por defecto
+            # Actualizar estado en pestaña descifrar
+            self.lbl_key_status.configure(text="Estado: Usando claves recién generadas (Memoria)", text_color="#2ECC71")
+
+            # 2. Ejecutar algoritmo
+            history = run_algorithm_with_steps(self.img_cv_source["Cifrar"], self.current_keys, mode='encrypt')
+            self.history_steps["Cifrar"] = history
             
-            # Mostrar resultado final
-            self.on_slider_change(mode, total_steps-1)
+            # 3. Configurar Slider
+            self.configure_slider("Cifrar", len(history))
             
-            messagebox.showinfo("Éxito", f"Proceso terminado.\nUsa el slider inferior para ver el progreso.")
+            # 4. Habilitar botones de guardado
+            self.btn_save_img_enc.configure(state="normal")
+            self.btn_save_json.configure(state="normal")
+            
+            messagebox.showinfo("Éxito", "Imagen cifrada. \n¡No olvides guardar el archivo JSON de claves!")
             
         except Exception as e:
             messagebox.showerror("Error", str(e))
 
+    def save_keys_json(self):
+        if not self.current_keys: return
+        path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON", "*.json")], initialfile="keys.json")
+        if path:
+            with open(path, 'w') as f:
+                json.dump(self.current_keys, f, indent=4)
+            messagebox.showinfo("Guardado", "Claves exportadas correctamente.")
+
+    # --- ACCIONES DESCIFRADO ---
+    def load_keys_json(self):
+        path = filedialog.askopenfilename(filetypes=[("JSON", "*.json")])
+        if path:
+            try:
+                with open(path, 'r') as f:
+                    data = json.load(f)
+                # Validar estructura básica
+                if "params" in data and "X0" in data:
+                    self.current_keys = data
+                    self.lbl_key_status.configure(text=f"Estado: Claves cargadas desde {os.path.basename(path)}", text_color="#3498DB")
+                    messagebox.showinfo("Cargado", "Claves importadas correctamente.")
+                else:
+                    messagebox.showerror("Error", "El archivo JSON no tiene el formato correcto.")
+            except Exception as e:
+                messagebox.showerror("Error", f"Fallo al leer JSON: {str(e)}")
+
+    def run_decryption(self):
+        if "Descifrar" not in self.img_cv_source:
+            messagebox.showerror("Error", "Carga una imagen cifrada primero.")
+            return
+        
+        if self.current_keys is None:
+            messagebox.showerror("Error Falta Clave", "No hay claves cargadas.\nPor favor carga un archivo JSON o cifra una imagen antes.")
+            return
+
+        try:
+            history = run_algorithm_with_steps(self.img_cv_source["Descifrar"], self.current_keys, mode='decrypt')
+            self.history_steps["Descifrar"] = history
+            
+            self.configure_slider("Descifrar", len(history))
+            self.btn_save_img_dec.configure(state="normal")
+            
+            messagebox.showinfo("Éxito", "Imagen descifrada.")
+            
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    # --- UTILIDADES COMUNES ---
+    def configure_slider(self, tab_name, total_steps):
+        slider = getattr(self, f"slider_{tab_name}")
+        slider.configure(state="normal", from_=0, to=total_steps-1, number_of_steps=total_steps-1)
+        slider.set(total_steps-1)
+        self.on_slider_change(tab_name, total_steps-1)
+
     def on_slider_change(self, mode, value):
         if not self.history_steps.get(mode): return
-        
         idx = int(value)
-        # Asegurar que el índice no se salga
         idx = max(0, min(idx, len(self.history_steps[mode]) - 1))
         
         step_name, step_img = self.history_steps[mode][idx]
-        
-        # Actualizar imagen
         self.show_image(step_img, mode)
-        
-        # Actualizar etiqueta
-        lbl = getattr(self, f"lbl_step_{mode}")
-        lbl.configure(text=f"Paso {idx}: {step_name}")
+        getattr(self, f"lbl_step_{mode}").configure(text=f"Paso {idx}: {step_name}")
 
     def save_current_image(self, mode):
         if not self.history_steps.get(mode): return
-        
         slider = getattr(self, f"slider_{mode}")
         idx = int(slider.get())
         _, img_to_save = self.history_steps[mode][idx]
