@@ -3,10 +3,9 @@ from pathlib import Path
 import numpy as np
 import cv2 as cv
 
-sys.path.append(str(Path(__file__).parent.parent / "Scripts"))
-from main import generate_A, generate_X0, prepare_image, shuffle
+sys.path.append(str(Path(__file__).parent.parent / "scr"))
+from core import generate_A, generate_X0, prepare_image, shuffle
 
-# convertir de bloques a imagen para poder mostrar y guardar el resultado
 def blocks_to_image(blocks: np.ndarray, l: int, original_shape: tuple[int, int]) -> np.ndarray:
     h, w = original_shape
     h_new, w_new = h - (h % l), w - (w % l)
@@ -20,7 +19,6 @@ def blocks_to_image(blocks: np.ndarray, l: int, original_shape: tuple[int, int])
 
 
 def test_shuffle_effect(l: int = 16, image_name: str = "mri1.jpg"):
-    # Cargar imagen
     img_path = Path("Imagenes") / image_name
     if not img_path.exists():
         raise FileNotFoundError(f"No se encontró {img_path}.")
@@ -30,8 +28,7 @@ def test_shuffle_effect(l: int = 16, image_name: str = "mri1.jpg"):
     
     original_shape = im.shape
     Iblocks = prepare_image(im, l)
-
-    # Generar claves
+    
     A = generate_A()
     X0 = generate_X0()
 

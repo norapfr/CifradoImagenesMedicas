@@ -6,10 +6,6 @@ import cv2 as cv
 import json
 import os
 
-# ==============================================================================
-# 1. LÓGICA CRIPTOGRÁFICA (Original basada en main2.py)
-# ==============================================================================
-
 def cat_map_4d_matrix(a, b, c, d):
     E = 2*(a + 1)*(d + b*c*(d + 1)) + a*(c + 1)*(d + 1)
     F = a*(c + 3) + 2*b*c*(a + 1) + 2
@@ -24,7 +20,6 @@ def cat_map_2d_matrix(a, b):
     return np.array([[1, a], [b, a*b+1]], dtype=float)
 
 def generate_random_keys():
-    """Genera claves completamente aleatorias (como en main2.py)"""
     params = {
         "p_omega": np.random.randint(1, 10, 4).tolist(),
         "p_psi": np.random.randint(1, 10, 4).tolist(),
@@ -35,7 +30,7 @@ def generate_random_keys():
     def rand_nonzero(n):
         x = np.random.random(n)
         while np.allclose(x, 0): x = np.random.random(n)
-        return x.tolist() # Convertir a lista para JSON serializable
+        return x.tolist()
 
     X0 = {
         "X0_omega": rand_nonzero(4),
@@ -46,7 +41,6 @@ def generate_random_keys():
     return params, X0
 
 def build_matrices(params):
-    """Reconstruye las matrices A a partir de los parámetros"""
     return {
         "A_omega": cat_map_4d_matrix(*params["p_omega"]),
         "A_psi": cat_map_4d_matrix(*params["p_psi"]),
@@ -142,16 +136,11 @@ def blocks_to_image(blocks, shape, l):
             idx += 1
     return out
 
-# FUNCIÓN PRINCIPAL DE EJECUCIÓN (Modificada para recibir keys en dict)
 def run_algorithm_with_steps(image, key_data, mode='encrypt'):
     rounds = 3
     l = 16
-    
-    # Extraer claves del diccionario
     params = key_data["params"]
     X0_raw = key_data["X0"]
-    
-    # Convertir listas a numpy arrays para el cálculo
     X0 = {k: np.array(v) for k, v in X0_raw.items()}
     A = build_matrices(params)
     
@@ -178,10 +167,6 @@ def run_algorithm_with_steps(image, key_data, mode='encrypt'):
             
     return history
 
-# ==============================================================================
-# 2. INTERFAZ GRÁFICA (Gestión JSON + Memoria)
-# ==============================================================================
-
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
@@ -190,9 +175,7 @@ class App(ctk.CTk):
         super().__init__()
         self.title("Cifrado Médico - JSON Key System")
         self.geometry("1100x800")
-        
-        # Estado global de claves (Memoria)
-        self.current_keys = None # Aquí se guarda el último juego de claves usado/generado
+        self.current_keys = None
         
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -210,8 +193,6 @@ class App(ctk.CTk):
         tab = self.tab_view.add("Cifrar")
         tab.grid_columnconfigure(0, weight=1)
         tab.grid_columnconfigure(1, weight=3)
-        
-        # -- Controles --
         frame_controls = ctk.CTkFrame(tab)
         frame_controls.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
         
@@ -223,22 +204,16 @@ class App(ctk.CTk):
         
         ctk.CTkButton(frame_controls, text="2. EJECUTAR CIFRADO", fg_color="green", command=self.run_encryption).pack(pady=10)
         
-        # Botones de guardado (deshabilitados al inicio)
         self.btn_save_img_enc = ctk.CTkButton(frame_controls, text="3. Guardar Imagen Cifrada", state="disabled", command=lambda: self.save_current_image("Cifrar"))
         self.btn_save_img_enc.pack(pady=10)
-        
         self.btn_save_json = ctk.CTkButton(frame_controls, text="4. Guardar Claves (JSON)", fg_color="#D35400", state="disabled", command=self.save_keys_json)
         self.btn_save_json.pack(pady=10)
-
-        # -- Visualización --
         self.setup_visualization_frame(tab, "Cifrar")
 
     def setup_decryption_tab(self):
         tab = self.tab_view.add("Descifrar")
         tab.grid_columnconfigure(0, weight=1)
         tab.grid_columnconfigure(1, weight=3)
-        
-        # -- Controles --
         frame_controls = ctk.CTkFrame(tab)
         frame_controls.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
         
@@ -246,7 +221,6 @@ class App(ctk.CTk):
         
         ctk.CTkButton(frame_controls, text="1. Cargar Imagen Cifrada", command=lambda: self.load_image("Descifrar")).pack(pady=10)
         
-        # Sección Claves
         ctk.CTkLabel(frame_controls, text="Gestión de Claves:").pack(pady=(20,5))
         
         self.lbl_key_status = ctk.CTkLabel(frame_controls, text="Estado: Usando últimas claves generadas", text_color="yellow", font=("Arial", 11))
@@ -258,15 +232,12 @@ class App(ctk.CTk):
         
         self.btn_save_img_dec = ctk.CTkButton(frame_controls, text="3. Guardar Imagen Descifrada", state="disabled", command=lambda: self.save_current_image("Descifrar"))
         self.btn_save_img_dec.pack(pady=10)
-
-        # -- Visualización --
         self.setup_visualization_frame(tab, "Descifrar")
 
     def setup_visualization_frame(self, tab, name):
         frame_view = ctk.CTkFrame(tab)
         frame_view.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
         
-        # Slider Abajo
         frame_slider = ctk.CTkFrame(frame_view, fg_color="transparent")
         frame_slider.pack(side="top", fill="x", padx=20, pady=20)
         
@@ -279,12 +250,9 @@ class App(ctk.CTk):
         slider.configure(command=lambda val, m=name: self.on_slider_change(m, val))
         setattr(self, f"slider_{name}", slider)
 
-        # Imagen Arriba
         lbl_img = ctk.CTkLabel(frame_view, text="Vista Previa")
         lbl_img.pack(side="top", expand=True, fill="both", pady=10)
         setattr(self, f"lbl_preview_{name}", lbl_img)
-
-    # --- LÓGICA DE INTERFAZ ---
 
     def load_image(self, tab_name):
         path = filedialog.askopenfilename(filetypes=[("Images", "*.jpg *.png *.bmp")])
@@ -292,8 +260,6 @@ class App(ctk.CTk):
             img = cv.imread(path, cv.IMREAD_GRAYSCALE)
             self.img_cv_source[tab_name] = img
             self.show_image(img, tab_name)
-            
-            # Reset UI
             self.history_steps[tab_name] = None
             getattr(self, f"slider_{tab_name}").configure(state="disabled")
             getattr(self, f"lbl_step_{tab_name}").configure(text="Imagen Cargada")
@@ -313,28 +279,18 @@ class App(ctk.CTk):
         lbl.configure(image=img_tk, text="")
         lbl.image = img_tk
 
-    # --- ACCIONES CIFRADO ---
     def run_encryption(self):
         if "Cifrar" not in self.img_cv_source:
             messagebox.showerror("Error", "Carga una imagen primero.")
             return
 
         try:
-            # 1. Generar claves nuevas aleatorias
             params, X0 = generate_random_keys()
-            self.current_keys = {"params": params, "X0": X0} # Guardar en memoria
-            
-            # Actualizar estado en pestaña descifrar
+            self.current_keys = {"params": params, "X0": X0}
             self.lbl_key_status.configure(text="Estado: Usando claves recién generadas (Memoria)", text_color="#2ECC71")
-
-            # 2. Ejecutar algoritmo
             history = run_algorithm_with_steps(self.img_cv_source["Cifrar"], self.current_keys, mode='encrypt')
             self.history_steps["Cifrar"] = history
-            
-            # 3. Configurar Slider
             self.configure_slider("Cifrar", len(history))
-            
-            # 4. Habilitar botones de guardado
             self.btn_save_img_enc.configure(state="normal")
             self.btn_save_json.configure(state="normal")
             
@@ -351,14 +307,12 @@ class App(ctk.CTk):
                 json.dump(self.current_keys, f, indent=4)
             messagebox.showinfo("Guardado", "Claves exportadas correctamente.")
 
-    # --- ACCIONES DESCIFRADO ---
     def load_keys_json(self):
         path = filedialog.askopenfilename(filetypes=[("JSON", "*.json")])
         if path:
             try:
                 with open(path, 'r') as f:
                     data = json.load(f)
-                # Validar estructura básica
                 if "params" in data and "X0" in data:
                     self.current_keys = data
                     self.lbl_key_status.configure(text=f"Estado: Claves cargadas desde {os.path.basename(path)}", text_color="#3498DB")
@@ -389,7 +343,6 @@ class App(ctk.CTk):
         except Exception as e:
             messagebox.showerror("Error", str(e))
 
-    # --- UTILIDADES COMUNES ---
     def configure_slider(self, tab_name, total_steps):
         slider = getattr(self, f"slider_{tab_name}")
         slider.configure(state="normal", from_=0, to=total_steps-1, number_of_steps=total_steps-1)
