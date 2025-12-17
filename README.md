@@ -19,12 +19,29 @@ El objetivo principal es estudiar y reproducir el sistema de cifrado basado en *
 
 ## 📂 Estructura del proyecto
 
-* `Claves/` : Contiene las claves generadas para las 3 imágenes de prueba.
-* `Imagenes/` : Contiene las imágenes originales, cifradas y descifradas.
-* `Resultados/` : Contiene histogramas y análisis generados tras ejecutar los tests.
-* `Scripts/` : Contiene la interfaz gráfica y scripts de ejecución.
-* `src/` : Contiene toda la lógica del cifrado y descifrado.
-* `Test/` : Scripts para análisis y evaluación de las métricas y la efectividad del cifrado.
+El proyecto se organiza en las siguientes carpetas, cada una con una función específica orientada a facilitar el desarrollo, las pruebas y la evaluación del sistema de cifrado:
+
+- **`Claves/`**  
+  Esta carpeta se ha creado para que los usuarios dispongan de un espacio accesible donde almacenar las claves generadas durante las pruebas realizadas a través de la interfaz gráfica. Contiene las claves correspondientes a las tres imágenes de prueba empleadas en el proyecto.
+
+- **`Imagenes/`**  
+  Incluye las imágenes originales, cifradas y descifradas utilizadas durante el desarrollo y las pruebas. Además de servir como repositorio de resultados, esta carpeta se empleó para almacenar las imágenes de prueba utilizadas en los experimentos.
+
+- **`Resultados/`**  
+  Contiene los histogramas, métricas y análisis generados tras la ejecución de los distintos tests, permitiendo evaluar el comportamiento estadístico y la efectividad del cifrado.
+
+- **`Scripts/`**  
+  Alberga la interfaz gráfica del sistema y los scripts necesarios para la ejecución del cifrado, descifrado y pruebas automatizadas.
+
+- **`src/`**  
+  Contiene toda la lógica principal del cifrado y descifrado, organizada en distintas subcarpetas según la funcionalidad implementada.  
+  Para la presentación del proyecto se realizaron pruebas utilizando distintos tamaños de bloque y diferentes imágenes, con el objetivo de analizar la rapidez, eficiencia y resistencia frente a ataques diferenciales. En concreto, se trabajó con cuatro imágenes: `mri1`, `mri2`, `mri3` y `PruebaPres`, siendo esta última la empleada durante la presentación.  
+  Las pruebas se realizaron con bloques de tamaño `1x1` y `16x16` para todas las imágenes, y adicionalmente con bloques de `8x8` en el caso de `PruebaPres`, con el fin de obtener una comparación más precisa de los resultados.  
+  Asimismo, dentro de esta carpeta se incluyen imágenes que muestran la comparación entre la imagen cifrada original y la imagen tras aplicar un ataque diferencial. Estas comparaciones pueden observarse en los archivos `Diff` y `Diff_binary.png`, donde el resultado binarizado permite apreciar de forma más clara las diferencias.  
+  Por último, también se adjuntan las imágenes intermedias correspondientes a las dos fases del algoritmo a lo largo de las tres rondas, tanto para el cifrado como para el descifrado, aunque este proceso puede visualizarse de forma más dinámica mediante la interfaz gráfica.
+
+- **`Test/`**  
+  Contiene los scripts destinados al análisis y evaluación de las métricas, así como a la validación de la efectividad del cifrado frente a distintos escenarios de prueba.
 
 ---
 
