@@ -7,9 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from skimage.metrics import peak_signal_noise_ratio as psnr
 
-# ==========================================================
-# PATHS DEL PROYECTO
-# ==========================================================
+
 BASE_DIR = Path(__file__).parent.parent
 SRC_DIR = BASE_DIR / "src"         # core, encoder, decoder
 SCRIPTS_DIR = BASE_DIR / "Scripts" # main.py
@@ -19,9 +17,7 @@ RESULTS_DIR = BASE_DIR / "Resultados"
 sys.path.insert(0, str(SRC_DIR))
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-# ==========================================================
-# IMPORTS
-# ==========================================================
+
 from core import *
 from encoder import encode
 from decoder import decode
@@ -58,20 +54,17 @@ def plot_histograms(original, encrypted, title="", save_path=None, show=True):
     if save_path:
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, bbox_inches="tight")
-        print(f"✅ Histograma guardado en: {save_path}")
+        print(f" Histograma guardado en: {save_path}")
     if show:
         plt.show()
     plt.close()
 
-# ==========================================================
-# UTILIDADES
-# ==========================================================
+
 def crop_to_blocks(im, l):
     h, w = im.shape
     return im[: h - (h % l), : w - (w % l)]
 
 def activar_key(path_key):
-    """Copia la key correcta para main.py"""
     if not path_key.exists():
         raise FileNotFoundError(f"No existe la key: {path_key}")
     shutil.copy(path_key, BASE_DIR / "keys.json")
@@ -88,12 +81,12 @@ def analizar_imagen(path_original, path_cifrada, path_descifrada, path_key, nomb
 
     activar_key(path_key)
 
-    # Cargar imágenes
+   
     O = cv.imread(str(path_original), cv.IMREAD_GRAYSCALE)
     C = cv.imread(str(path_cifrada), cv.IMREAD_GRAYSCALE)
     D = cv.imread(str(path_descifrada), cv.IMREAD_GRAYSCALE)
     if O is None or C is None or D is None:
-        print("❌ Error cargando imágenes")
+        print(" Error cargando imágenes")
         return
 
     rounds = 3
@@ -105,18 +98,16 @@ def analizar_imagen(path_original, path_cifrada, path_descifrada, path_key, nomb
     C = crop_to_blocks(C, l)
     D = crop_to_blocks(D, l)
 
-    # Métricas de descifrado
+    
     print("Métricas del descifrado:")
     print("PSNR:", safe_psnr(O, D))
     print("MSE :", mse(O, D))
 
-    # Correlación
+    
     print("\nCorrelación en imagen cifrada:")
     print("Correlación horizontal:", correlation_coefficient(C))
 
-    # -----------------------------
-    # NPCR & UACI usando tu código
-    # -----------------------------
+   
     O_mod = O.copy().astype(np.uint16)
     O_mod[0,0] = (O_mod[0,0] + 1) % 256
     O_mod = O_mod.astype(np.uint8)
